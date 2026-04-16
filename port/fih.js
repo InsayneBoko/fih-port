@@ -144,7 +144,7 @@ const Preloader = /** @constructor */ function () { // eslint-disable-line no-un
 		};
 		return fetch(file).then(function (response) {
 			if (!response.ok) {
-				return Promise.reject(new Error(`Failed loading file '${file}'`));
+				return Promise.reject(new Error(`Failed loading file '${file}', this is the fault of boko being bad at js, run the port again`));
 			}
 			const tr = getTrackedResponse(response, tracker[file]);
 			if (raw) {
