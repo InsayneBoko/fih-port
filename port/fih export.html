@@ -1,6 +1,8 @@
 <!DOCTYPE html>
+<!-- port by boko -->
 <html lang="en">
 	<head>
+		<base href="https://cdn.jsdelivr.net/gh/InsayneBoko/fih-port@latest/port/">
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
 		<title>fih</title>
@@ -111,6 +113,63 @@ body {
 
 		<script src="fih export.js"></script>
 		<script>
+			 function mergeFiles(fileParts) {
+          return new Promise((resolve, reject) => {
+            const buffers = [];
+            const fetchPart = (i) => {
+              if (i >= fileParts.length) {
+                const total = buffers.reduce((s, b) => s + b.byteLength, 0);
+                const combined = new Uint8Array(total);
+                let off = 0;
+                for (const buf of buffers) { combined.set(new Uint8Array(buf), off); off += buf.byteLength; }
+                resolve(URL.createObjectURL(new Blob([combined], { type: 'application/octet-stream' })));
+                return;
+              }
+              fetch(fileParts[i])
+                .then(r => { if (!r.ok) throw new Error(`Yikes, failed to fetch ${fileParts[i]}`); return r.arrayBuffer(); })
+                .then(ab => { buffers.push(ab); fetchPart(i + 1); })
+                .catch(reject);
+            };
+            fetchPart(0);
+          });
+        }
+
+        function getParts(file, start, end) {
+          const a = [];
+          for (let i = start; i <= end; i++) a.push(`${file}.part${i}`);
+          return a;
+        }
+
+        Promise.all([
+          mergeFiles(getParts('fih export.pck', 1, 2)),
+          mergeFiles(getParts('fih export.wasm', 1, 2)),
+        ]).then(([pckUrl, sideWasmUrl]) => {
+          const originalFetch = window.fetch.bind(window);
+          window.fetch = async function(url, ...args) {
+            if (typeof url === 'string') {
+              if (url.endsWith('fih export.pck')) return originalFetch(pckUrl, ...args);
+              if (url.endsWith('fih export.wasm')) return originalFetch(wasmUrl, ...args);
+            }
+            return originalFetch(url, ...args);
+          };
+
+          const originalOpen = XMLHttpRequest.prototype.open;
+          XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+            if (typeof url === 'string') {
+              if (url.includes('fih export.pck')) url = pckUrl;
+              if (url.includes('fih export.wasm')) url = sideWasmUrl;
+            }
+            return originalOpen.call(this, method, url, ...rest);
+          };
+
+          return new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'index.js';
+            s.onload = resolve;
+            s.onerror = () => reject(new Error('Ruh roh, failed to load index.js ):'));
+            document.body.appendChild(s);
+          });
+        }).then(() => {
 const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"fih export","experimentalVK":false,"fileSizes":{"fih export.pck":25411476,"fih export.wasm":35739700},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
@@ -214,6 +273,9 @@ const engine = new Engine(GODOT_CONFIG);
 		}, displayFailureNotice);
 	}
 }());
+			}).catch(err => {
+          console.error('Failed to merge or start:', err);
+        });
 		</script>
 	</body>
 </html>
