@@ -1,6 +1,8 @@
 <!DOCTYPE html>
+<!-- port by boko -->
 <html lang="en">
 	<head>
+		<base href="https://cdn.jsdelivr.net/gh/InsayneBoko/fih-port@latest/port/">
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
 		<title>fih</title>
@@ -95,6 +97,55 @@ body {
 
 	</head>
 	<body>
+		<script>
+			const originalFetch = window.fetch;
+
+function mergeFiles(fileParts) {
+    return new Promise((resolve, reject) => {
+        let buffers = [];
+
+        function fetchPart(index) {
+            if (index >= fileParts.length) {
+                let mergedBlob = new Blob(buffers);
+                let mergedFileUrl = URL.createObjectURL(mergedBlob);
+                resolve(mergedFileUrl);
+                return;
+            }
+            fetch(fileParts[index]).then((response) => {
+                if (!response.ok) throw new Error("Missing part: " + fileParts[index]);
+                return response.arrayBuffer();
+            }).then((data) => {
+                buffers.push(data);
+                fetchPart(index + 1);
+            }).catch(reject);
+        }
+        fetchPart(0);
+    });
+}
+
+function getParts(file, start, end) {
+    let parts = [];
+    for (let i = start; i <= end; i++) {
+        parts.push(file + ".part" + i);
+    }
+    return parts;
+}
+Promise.all([
+    mergeFiles(getParts("fih.pck", 1, 2)),
+    mergeFiles(getParts("fih.wasm", 1, 2))
+]).then(([pckUrl, wasmUrl]) => {
+    window.fetch = async function (url, ...args) {
+        if (url.endsWith("fih.pck")) {
+            return originalFetch(pckUrl, ...args);
+        } else if (url.endsWith("fih.wasm")) {
+            return originalFetch(wasmUrl, ...args);
+        } else {
+            return originalFetch(url, ...args);
+        }
+    };
+    window.godotRunStart = run;
+});
+		</script>
 		<canvas id="canvas">
 			Your browser does not support the canvas tag.
 		</canvas>
